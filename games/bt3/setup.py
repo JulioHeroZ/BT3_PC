@@ -331,11 +331,18 @@ def main() -> None:
                 run(["git", "-C", ROOT, "submodule", "update", "--init", "--recursive"])
             except Exception as e:   # noqa: BLE001
                 print(f"== submodule fetch failed ({e}); building without the paraLLEl-GS backend")
-        print("== building recompiler")
-        if not configured():
-            run(["cmake", "-S", ROOT, "-B", BUILD] + cmake_configure_extra())
-        cmake_build("ps2_recomp", str(os.cpu_count() or 4))
-        recomp = find_binary("ps2_recomp")
+        external_recomp = os.environ.get("PS2X_RECOMP")
+        if external_recomp:
+            recomp = Path(external_recomp).resolve()
+            if not recomp.is_file():
+                die(f"PS2X_RECOMP does not exist: {recomp}")
+            print(f"== using supplied recompiler: {recomp}")
+        else:
+            print("== building recompiler")
+            if not configured():
+                run(["cmake", "-S", ROOT, "-B", BUILD] + cmake_configure_extra())
+            cmake_build("ps2_recomp", str(os.cpu_count() or 4))
+            recomp = find_binary("ps2_recomp")
 
         # 4. Generate the runner sources. The function map first gets its oversized
         #    Ghidra-truncation rows deduplicated and split into compiler-friendly

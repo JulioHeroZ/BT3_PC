@@ -63,3 +63,6 @@ BT3-PC-teste-portatil*.zip
 
 Budokai Tenkaichi 3 Portable/
 Budokai Tenkaichi 3 Portable*.zip
+
+# Generic build frontend (contains no recompiled game code)
+!/Recompilar-BT3.exe

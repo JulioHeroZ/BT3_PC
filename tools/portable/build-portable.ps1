@@ -2,13 +2,17 @@ param(
     [string]$Iso = '',
     [int]$Jobs = 3,
     [string]$OutDir = '',
-    [string]$Python = 'python',
+    [string]$Python = '',
     [switch]$SkipRecompile
 )
 $ErrorActionPreference = 'Stop'
 $repo = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 if (-not $OutDir) { $OutDir = Join-Path $repo 'build/manual-portable' }
 if ($Jobs -lt 1) { throw 'Jobs deve ser positivo.' }
+. (Join-Path $PSScriptRoot 'bundled-programs.ps1')
+$programs = Initialize-BT3Programs
+if (-not $Python) { $Python = $programs.Python }
+$env:PS2X_RECOMP = $programs.Recompiler
 . (Join-Path $PSScriptRoot 'toolchain.ps1')
 Import-BT3Toolchain
 if (-not $SkipRecompile) {
