@@ -249,6 +249,8 @@ void LauncherWindow::onPlayClicked()
         const QString dataDir = m_dataDir;
         proc->setArguments({QDir(dataDir).filePath(QStringLiteral("SLUS_216.78"))});
         auto env = QProcessEnvironment::systemEnvironment();
+        // Installed game data is read from data/, independently of the source ISO.
+        env.remove(QStringLiteral("PS2X_CD_IMAGE"));
         // [deploy] Anchor the runner's savedata/assets/fonts (and settings.toml)
         // at the deploy root -- where the launcher wrote them -- not data/.
         env.insert(QStringLiteral("PS2X_EXEDIR"), apppaths::userRoot());

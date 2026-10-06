@@ -236,3 +236,7 @@ controller device to Keyboard in the overlay if a gamepad-like device is present
 
 Licence note: paraLLEl-GS is LGPL-3.0-or-later and this repository is GPL-3.0; the combination is distributed under
 GPL-3.0. Its licence text is `ps2xRuntime/third_party/parallel-gs/COPYING.LGPLv3`.
+
+## Simple Windows portable installer
+
+See [tools/portable/README.md](tools/portable/README.md) to build `Budokai Tenkaichi 3 Portable.zip` from your own supported USA ISO. This flow generates `Budokai Tenkaichi 3.exe` and `Instalar-BT3.exe`, checks DLL imports and packages a portable installation without personal saves or extracted disc data. After installing the data once, the game runs without the ISO. The generated game binaries and package are not included in Git.

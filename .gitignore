@@ -54,3 +54,12 @@ AGENTS.md
 deploy/
 fmv_build/
 launcher-build-log.txt
+
+# Portable packages and local user content
+BT3-PC-teste-portatil/
+BT3-PC-teste-portatil*.zip
+*.iso
+*.ISO
+
+Budokai Tenkaichi 3 Portable/
+Budokai Tenkaichi 3 Portable*.zip
