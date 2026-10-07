@@ -426,7 +426,7 @@ bool PS2SettingsOverlay::Settings::operator==(const Settings &o) const
            halfTexel == o.halfTexel &&
            skipPost == o.skipPost &&
            skipStaleVram == o.skipStaleVram &&
-           renderScale == o.renderScale &&
+           renderScale == o.renderScale && renderScaleAuto == o.renderScaleAuto && anisotropy == o.anisotropy &&
            deadzone == o.deadzone &&
            fullscreen == o.fullscreen &&
            widescreen == o.widescreen &&
@@ -516,12 +516,17 @@ void PS2SettingsOverlay::loadSettings()
     m_settings.inkWidth = std::clamp(doc.getI("video.ink_width", m_settings.inkWidth), 25, 100);
     m_settings.inkColor = hexToColor(doc.getS("video.ink_color", colorToHex(m_settings.inkColor)), m_settings.inkColor);
     if (!envUserSet("PS2X_BILINEAR")) m_settings.bilinear = doc.getB("video.bilinear", m_settings.bilinear);
+    m_settings.renderScaleAuto = doc.getB("video.render_scale_auto", true);
+    { int level = doc.getI("video.anisotropy", 1); m_settings.anisotropy = 1;
+      for (int candidate : {2, 4, 8, 16}) if (level >= candidate) m_settings.anisotropy = candidate; }
     if (!envUserSet("PS2X_HALFTEXEL")) m_settings.halfTexel = doc.getB("video.halftexel", m_settings.halfTexel);
     if (!envUserSet("PS2X_SKIPPOST")) m_settings.skipPost = doc.getB("video.skippost", m_settings.skipPost);
     if (!envUserSet("PS2X_SKIP_STALE_VRAM")) m_settings.skipStaleVram = doc.getB("video.skip_stale_vram", m_settings.skipStaleVram);
-    if (!envUserSet("PS2X_RENDER_SCALE"))
+    if (!envUserSet("PS2X_RENDER_SCALE") && !envUserSet("PS2X_RENDERSCALE"))
     {
-        const int s = doc.getI("video.render_scale", m_settings.renderScale);
+        const int windowHeight = doc.getI("video.window_h", 0);
+        const int s = m_settings.renderScaleAuto && windowHeight > 0
+            ? ps2xRenderScaleForHeight(windowHeight) : doc.getI("video.render_scale", m_settings.renderScale);
         m_settings.renderScale = (s >= 1 && s <= 4) ? s : 1;
     }
     if (!envUserSet("PS2X_OUTLINE")) m_settings.outline = doc.getB("video.outline", m_settings.outline);
@@ -629,7 +634,9 @@ void PS2SettingsOverlay::preloadSettings()
     forceBilinearPre = doc.getB("video.force_bilinear", forceBilinearPre);
     {   // [rscale] authoritative startup application -- runs before anything reads the
         // live scale, so the TOML value wins the lazy-init race.
-        const int rs = doc.getI("video.render_scale", 0);
+        const int windowHeight = doc.getI("video.window_h", 0);
+        const int rs = doc.getB("video.render_scale_auto", true) && windowHeight > 0
+            ? ps2xRenderScaleForHeight(windowHeight) : doc.getI("video.render_scale", 0);
         if (rs >= 1 && rs <= 4 && !envUserSet("PS2X_RENDER_SCALE") && !envUserSet("PS2X_RENDERSCALE"))
         {
             GsGpuRenderer::setRenderScale(rs);
@@ -674,6 +681,8 @@ void PS2SettingsOverlay::saveSettings() const
     os << "skippost = " << fmtBool(m_settings.skipPost) << "\n";
     os << "skip_stale_vram = " << fmtBool(m_settings.skipStaleVram) << "\n";
     os << "render_scale = " << fmtInt(m_settings.renderScale) << "\n";
+    os << "render_scale_auto = " << fmtBool(m_settings.renderScaleAuto) << "\n";
+    os << "anisotropy = " << fmtInt(m_settings.anisotropy) << "\n";
     os << "outline = " << fmtBool(m_settings.outline) << "\n";
     os << "texture_pack = " << fmtBool(m_settings.texPack) << "\n";
     os << "shadows = " << fmtBool(m_settings.shadows) << "\n";
@@ -777,6 +786,7 @@ void PS2SettingsOverlay::applySettings()
     ps2x_pgs::setInkWidthPct(m_settings.inkWidth);   // [pgsink] backend stroke width
     ps2x_pgs::setInkColor(m_settings.inkColor);       // [pgsink] backend stroke colour
     GsGpuRenderer::setBilinear(m_settings.bilinear);
+    GsGpuRenderer::setAnisotropy(m_settings.anisotropy);
     GsGpuRenderer::setHalfTexel(m_settings.halfTexel);
     GsGpuRenderer::setSkipPost(m_settings.skipPost);
     GsGpuRenderer::setSkipStaleVram(m_settings.skipStaleVram);
@@ -1387,15 +1397,45 @@ void PS2SettingsOverlay::drawVideoTab()
         }
     }
 
+    ImGui::TextUnformatted("Anisotropic filtering (OpenGL)");
+    const bool anisoAvailable = m_settings.renderer == 0 && GsGpuRenderer::maxAnisotropy() > 1;
+    ImGui::BeginDisabled(!anisoAvailable || !m_settings.bilinear);
+    const char *anisoNames[] = {"Off", "2x", "4x", "8x", "16x"};
+    const int anisoLevels[] = {1, 2, 4, 8, 16};
+    int anisoIndex = 0;
+    for (int i = 0; i < 5; ++i) if (m_settings.anisotropy == anisoLevels[i]) anisoIndex = i;
+    if (ImGui::BeginCombo("##anisotropy", anisoNames[anisoIndex])) {
+        for (int i = 0; i < 5; ++i) {
+            if (anisoLevels[i] > GsGpuRenderer::maxAnisotropy()) continue;
+            if (ImGui::Selectable(anisoNames[i], i == anisoIndex)) { m_settings.anisotropy = anisoLevels[i]; m_dirty = true; }
+        }
+        ImGui::EndCombo();
+    }
+    ImGui::EndDisabled();
+    ImGui::TextDisabled(anisoAvailable ? "Improves angled textures; requires bilinear filtering." : "Available with a supported OpenGL renderer.");
+    if (anisoAvailable) ImGui::TextDisabled("GPU limit: %dx. Does not smooth polygon edges.", GsGpuRenderer::maxAnisotropy());
+
     // Display
     sectionHeader("DISPLAY");
+    const char *scaleNames[] = {"Auto (window resolution)", "1x (native)", "2x", "3x"};
+    int scaleChoice = m_settings.renderScaleAuto ? 0 : std::clamp(m_settings.renderScale, 1, 3);
+    const bool scaleOverride = envUserSet("PS2X_RENDER_SCALE") || envUserSet("PS2X_RENDERSCALE") || envUserSet("PS2X_PGS_SSAA");
+    ImGui::TextUnformatted("Internal resolution");
+    ImGui::BeginDisabled(scaleOverride || m_settings.renderer == 1);
+    if (ImGui::Combo("##internalResolution", &scaleChoice, scaleNames, 4)) {
+        m_settings.renderScaleAuto = scaleChoice == 0;
+        m_settings.renderScale = scaleChoice == 0 ? ps2xRenderScaleForHeight(GetScreenHeight()) : scaleChoice;
+        m_dirty = true;
+    }
+    ImGui::EndDisabled();
+    ImGui::TextDisabled(scaleOverride ? "Controlled by environment override." : "OpenGL changes apply after restarting the game.");
     if (toggleSwitch("Fullscreen", &m_settings.fullscreen))
     {
         ps2xSetFullscreen(m_settings.fullscreen, m_settings.windowW, m_settings.windowH);
         // [builtin-res] the internal render scale follows the resolution: 720p=1x,
         // 1080p=2x, 1440p+=3x. Derive it from the current screen in fullscreen.
         const int h = GetScreenHeight();
-        m_settings.renderScale = ps2xRenderScaleForHeight(h);
+        if (m_settings.renderScaleAuto && !envUserSet("PS2X_RENDER_SCALE") && !envUserSet("PS2X_RENDERSCALE")) m_settings.renderScale = ps2xRenderScaleForHeight(h);
         if (!envUserSet("PS2X_PGS_SSAA")) ps2x_pgs::setRenderScale(m_settings.renderScale);   // [pgslive]
         m_dirty = true;
     }
@@ -1459,7 +1499,7 @@ void PS2SettingsOverlay::drawVideoTab()
                     m_settings.windowH = kRes[i][1];
                     // [builtin-res] the internal render scale is built into the resolution:
                     // 720p=1x, 1080p=2x, 1440p+=3x. paraLLEl-GS replays live at the new SSAA.
-                    m_settings.renderScale = ps2xRenderScaleForHeight(kRes[i][1]);
+                    if (m_settings.renderScaleAuto && !envUserSet("PS2X_RENDER_SCALE") && !envUserSet("PS2X_RENDERSCALE")) m_settings.renderScale = ps2xRenderScaleForHeight(kRes[i][1]);
                     if (!envUserSet("PS2X_PGS_SSAA")) ps2x_pgs::setRenderScale(m_settings.renderScale);   // [pgslive]
                     m_dirty = true;
                 }

@@ -176,7 +176,9 @@ bool SettingsManager::loadToml(const QString &path)
     m_halfTexel = doc.getB("video.halftexel", m_halfTexel);
     m_skipPost = doc.getB("video.skippost", m_skipPost);
     m_skipStaleVram = doc.getB("video.skip_stale_vram", m_skipStaleVram);
-    m_renderScale = doc.getI("video.render_scale", m_renderScale);
+    m_renderScale = std::clamp(doc.getI("video.render_scale", m_renderScale), 1, 3);
+    m_renderScaleAuto = doc.getB("video.render_scale_auto", true);
+    m_anisotropy = std::clamp(doc.getI("video.anisotropy", 1), 1, 16);
     m_outline = doc.getB("video.outline", m_outline);
     m_texPack = doc.getB("video.texture_pack", m_texPack);
     m_shadows = doc.getB("video.shadows", m_shadows);
@@ -257,7 +259,9 @@ bool SettingsManager::loadIniLegacy(const QString &path)
             else if (key == "halftexel") m_halfTexel = b;
             else if (key == "skippost") m_skipPost = b;
             else if (key == "skip_stale_vram") m_skipStaleVram = b;
-            else if (key == "render_scale") m_renderScale = ist(val, 1);
+            else if (key == "render_scale") m_renderScale = std::clamp(ist(val, 1), 1, 3);
+            else if (key == "render_scale_auto") m_renderScaleAuto = b;
+            else if (key == "anisotropy") m_anisotropy = std::clamp(ist(val, 1), 1, 16);
             else if (key == "outline") m_outline = b;
             else if (key == "shadows") m_shadows = b;
             else if (key == "dof_blur") m_dofBlur = b;
@@ -331,6 +335,8 @@ bool SettingsManager::save()
     os << "skippost = " << fmtBool(m_skipPost) << "\n";
     os << "skip_stale_vram = " << fmtBool(m_skipStaleVram) << "\n";
     os << "render_scale = " << fmtInt(m_renderScale) << "\n";
+    os << "render_scale_auto = " << fmtBool(m_renderScaleAuto) << "\n";
+    os << "anisotropy = " << fmtInt(m_anisotropy) << "\n";
     os << "outline = " << fmtBool(m_outline) << "\n";
     os << "texture_pack = " << fmtBool(m_texPack) << "\n";
     os << "shadows = " << fmtBool(m_shadows) << "\n";

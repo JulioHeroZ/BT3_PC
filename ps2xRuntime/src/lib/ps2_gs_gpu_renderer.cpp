@@ -244,6 +244,15 @@ bool GsGpuRenderer::glowFixEnabled()       { return uiFlag(g_uiGlowFix, "PS2X_GL
 void GsGpuRenderer::setGlowFix(bool v)     { g_uiGlowFix.store(v ? 1 : 0); }
 bool GsGpuRenderer::bilinearEnabled()      { return uiFlag(g_uiBilinear, "PS2X_BILINEAR", true); }
 void GsGpuRenderer::setBilinear(bool v)    { g_uiBilinear.store(v ? 1 : 0); }
+static std::atomic<int> g_uiAnisotropy{1}, g_maxAnisotropy{1};
+int GsGpuRenderer::anisotropy() { return g_uiAnisotropy.load(std::memory_order_relaxed); }
+void GsGpuRenderer::setAnisotropy(int level)
+{
+    int normalized = 1;
+    for (int candidate : {2, 4, 8, 16}) if (level >= candidate) normalized = candidate;
+    g_uiAnisotropy.store(normalized, std::memory_order_relaxed);
+}
+int GsGpuRenderer::maxAnisotropy() { return g_maxAnisotropy.load(std::memory_order_relaxed); }
 bool GsGpuRenderer::halfTexelEnabled()     { return uiFlag(g_uiHalfTexel, "PS2X_HALFTEXEL", true); }
 void GsGpuRenderer::setHalfTexel(bool v)   { g_uiHalfTexel.store(v ? 1 : 0); }
 bool GsGpuRenderer::skipPostEnabled()      { return uiFlag(g_uiSkipPost, "PS2X_SKIPPOST", false); }
@@ -387,6 +396,31 @@ static void *ps2xGlProc(const char *name) { return (void *)wglGetProcAddress(nam
 #include <dlfcn.h>
 static void *ps2xGlProc(const char *name) { return dlsym(RTLD_DEFAULT, name); }
 #endif
+extern "C" void glGetFloatv(unsigned int pname, float *value);
+extern "C" void glGetIntegerv(unsigned int pname, int *value);
+static void ps2xInitAnisotropy()
+{
+    // Called with the present thread's current context, never from settings/worker threads.
+    static bool queried = false;
+    if (queried) return;
+    queried = true;
+    using GetStringIndex = const unsigned char *(*)(unsigned int, unsigned int);
+    auto getStringIndex = reinterpret_cast<GetStringIndex>(ps2xGlProc("glGetStringi"));
+    if (!getStringIndex) return;
+    int count = 0; glGetIntegerv(0x821D /*GL_NUM_EXTENSIONS*/, &count);
+    bool supported = false;
+    for (int i = 0; i < count; ++i) {
+        const char *extension = reinterpret_cast<const char *>(getStringIndex(0x1F03 /*GL_EXTENSIONS*/, i));
+        if (extension && (!std::strcmp(extension, "GL_EXT_texture_filter_anisotropic") ||
+                          !std::strcmp(extension, "GL_ARB_texture_filter_anisotropic"))) supported = true;
+    }
+    if (supported) {
+        float maximum = 1; glGetFloatv(0x84FF /*GL_MAX_TEXTURE_MAX_ANISOTROPY*/, &maximum);
+        int level = 1;
+        for (int candidate : {2, 4, 8, 16}) if (maximum >= candidate) level = candidate;
+        g_maxAnisotropy.store(level, std::memory_order_relaxed);
+    }
+}
 static void ps2xTextureBarrier()
 {
     typedef void (*PFN)(void);
@@ -598,7 +632,10 @@ namespace
     void ps2xApplyTexFilter(Texture2D &t, bool bilinear)
     {
         const bool s_on = GsGpuRenderer::bilinearEnabled();   // [uitoggles]
-        if (!s_on || t.id == 0) return;
+        if (t.id == 0) return;
+        bilinear = bilinear && s_on;
+        const int anisotropy = bilinear ? std::min(GsGpuRenderer::anisotropy(), GsGpuRenderer::maxAnisotropy()) : 1;
+        const unsigned state = (anisotropy << 1) | (bilinear ? 1u : 0u);
         // [filtercache] the "already applied" shortcut. Was default OFF (2026-08-27) because the
         // cache went stale whenever a GL id was recycled (alternate frames point- vs bilinear).
         // Default ON again (2026-08-28): every id release now goes through ps2xForgetTexId (the
@@ -606,7 +643,7 @@ namespace
         // the single largest per-command GL cost in the draw loop. PS2X_FILTERCACHE=0 = old.
         static const bool s_fc = [](){ const char *v = std::getenv("PS2X_FILTERCACHE"); return !(v && v[0] == '0'); }();
         const int cached = g_texFilterState.get(t.id);
-        if (s_fc && cached >= 0 && (cached != 0) == bilinear)
+        if (s_fc && cached == static_cast<int>(state))
         {   // [filterchk] PS2X_FILTERCHK=1: the cache says "already applied" -- verify against GL and correct + log a lie.
             static const bool s_chk = [](){ const char *v = std::getenv("PS2X_FILTERCHK"); return v && v[0] && v[0] != '0'; }();
             if (!s_chk) return;
@@ -618,7 +655,8 @@ namespace
                 std::fprintf(stderr, "[filterchk] #%lu tex %u: cache says %s, GL says %s (%dx%d) -> corrected\n", nMiss, t.id, bilinear ? "bilinear" : "point", glBilinear ? "bilinear" : "point", t.width, t.height);
             flushBatch(__LINE__);
             SetTextureFilter(t, bilinear ? TEXTURE_FILTER_BILINEAR : TEXTURE_FILTER_POINT);
-            g_texFilterState.set(t.id, bilinear ? 1u : 0u);
+            if (GsGpuRenderer::maxAnisotropy() > 1) rlTextureParameters(t.id, RL_TEXTURE_FILTER_ANISOTROPIC, anisotropy);
+            g_texFilterState.set(t.id, state);
             return;
         }
         // [filterflush] a filter change is a GL texture parameter: quads of this texture still sitting in the
@@ -628,7 +666,8 @@ namespace
         static const bool s_ff = [](){ const char *v = std::getenv("PS2X_FILTERFLUSH"); return !(v && v[0] == '0'); }();   // [filterflush] =0: old behaviour (A/B)
         if (s_ff) flushBatch(__LINE__);
         SetTextureFilter(t, bilinear ? TEXTURE_FILTER_BILINEAR : TEXTURE_FILTER_POINT);
-        g_texFilterState.set(t.id, bilinear ? 1u : 0u);
+        if (GsGpuRenderer::maxAnisotropy() > 1) rlTextureParameters(t.id, RL_TEXTURE_FILTER_ANISOTROPIC, anisotropy);
+        g_texFilterState.set(t.id, state);
     }
     // [flatfbo] g_fbos was an unordered_map looked up dozens of times per DrawCmd (std::_Hashtable was ~5% of the
     // GL thread in the PR9/PR9P profiles). Same API subset (find/end/count/operator[]/size/range-for), backed by
@@ -6950,6 +6989,7 @@ static void ps2xWinGlResolve() {}
 #endif
 void GsGpuRenderer::ensureGl(int w, int h)
 {
+    ps2xInitAnisotropy();
     m_fboW = w;
     m_fboH = h;
     if (!g_whiteInit)

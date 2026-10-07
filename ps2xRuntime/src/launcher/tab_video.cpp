@@ -122,6 +122,7 @@ VideoTab::VideoTab(QWidget *parent)
         QStringLiteral("paraLLEl-GS (Vulkan)")};
     const int curRenderer = std::min(std::max(s.renderer(), 0), 2);
     root->addWidget(comboRow(QStringLiteral("Renderer"), &m_renderer, renderers, curRenderer));
+    m_renderer->setObjectName(QStringLiteral("rendererChoice"));
 #ifdef _WIN32
     root->addWidget(hintRow(QStringLiteral(
         "paraLLEl-GS runs on the bundled Mesa lavapipe (software Vulkan) on Windows; "
@@ -149,6 +150,7 @@ VideoTab::VideoTab(QWidget *parent)
     // FILTERING
     root->addWidget(sectionLabel(QStringLiteral("FILTERING")));
     root->addWidget(toggleRow(QStringLiteral("Bilinear Filter"), &m_bilinear, s.bilinear()));
+    m_bilinear->setObjectName(QStringLiteral("bilinearFilter"));
     root->addWidget(toggleRow(QStringLiteral("Force Filtering (smooth terrain)"), &m_forceBilinear,
                               s.forceBilinear()));
 
@@ -181,8 +183,38 @@ VideoTab::VideoTab(QWidget *parent)
     // The internal render scale is built-in: it follows the chosen window size
     // (720p=1x, 1080p=2x, 1440p+=3x). Re-derive here so a stale INI value from the
     // old 1x/2x/3x/4x dropdowns cannot outlive its resolution.
-    if (s.windowH() > 0)
+    if (s.renderScaleAuto() && s.windowH() > 0)
         s.setRenderScale(ps2xRenderScaleForHeight(s.windowH()));
+
+    auto *anisotropyCombo = new QComboBox;
+    anisotropyCombo->addItems({QStringLiteral("Off"), QStringLiteral("2x"), QStringLiteral("4x"), QStringLiteral("8x"), QStringLiteral("16x")});
+    int anisotropyIndex = 0;
+    for (int i = 1; i < 5; ++i) if (s.anisotropy() >= (1 << i)) anisotropyIndex = i;
+    anisotropyCombo->setCurrentIndex(anisotropyIndex);
+    anisotropyCombo->setEnabled(s.renderer() == SettingsManager::kRendererOpenGL && s.bilinear());
+    connect(m_renderer, &QComboBox::currentIndexChanged, anisotropyCombo, [this, anisotropyCombo](int renderer) {
+        anisotropyCombo->setEnabled(renderer == SettingsManager::kRendererOpenGL && m_bilinear->isChecked());
+    });
+    connect(m_bilinear, &QCheckBox::toggled, anisotropyCombo, [this, anisotropyCombo](bool on) {
+        anisotropyCombo->setEnabled(on && m_renderer->currentIndex() == SettingsManager::kRendererOpenGL);
+    });
+    root->addWidget(new QLabel(QStringLiteral("Anisotropic Filtering (OpenGL)")));
+    root->addWidget(anisotropyCombo);
+    root->addWidget(hintRow(QStringLiteral("Requires bilinear filtering; limited by the GPU. Does not reduce polygon-edge aliasing.")));
+    connect(anisotropyCombo, &QComboBox::currentIndexChanged, this, [](int index) {
+        SettingsManager::instance().setAnisotropy(1 << index);
+    });
+
+    auto *scaleCombo = new QComboBox;
+    scaleCombo->addItems({QStringLiteral("Auto (window resolution)"), QStringLiteral("1x (native)"), QStringLiteral("2x"), QStringLiteral("3x")});
+    scaleCombo->setCurrentIndex(s.renderScaleAuto() ? 0 : std::clamp(s.renderScale(), 1, 3));
+    root->addWidget(new QLabel(QStringLiteral("Internal Resolution")));
+    root->addWidget(scaleCombo);
+    connect(scaleCombo, &QComboBox::currentIndexChanged, this, [](int index) {
+        auto &settings = SettingsManager::instance();
+        settings.setRenderScaleAuto(index == 0);
+        settings.setRenderScale(index == 0 ? ps2xRenderScaleForHeight(settings.windowH()) : index);
+    });
 
     QStringList winItems = {
         QStringLiteral("1024 x 768 (4:3)"), QStringLiteral("1280 x 720"),
@@ -258,7 +290,7 @@ VideoTab::VideoTab(QWidget *parent)
     connect(m_winSize, &QComboBox::currentIndexChanged, this, [](int i) {
         SettingsManager &s = SettingsManager::instance();
         s.setWindowSize(kWinW[i], kWinH[i]);
-        s.setRenderScale(ps2xRenderScaleForHeight(kWinH[i]));
+        if (s.renderScaleAuto()) s.setRenderScale(ps2xRenderScaleForHeight(kWinH[i]));
     });
 }
 

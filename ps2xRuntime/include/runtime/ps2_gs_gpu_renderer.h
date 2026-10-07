@@ -36,11 +36,12 @@ public:
     // half-strength line, 199 = the hardware-exact 255/128 -- see PS2X_ADGS).
     static int  inkStrengthPct();   static void setInkStrengthPct(int pct);
     static bool bilinearEnabled();  static void setBilinear(bool v);
+    static int anisotropy(); static void setAnisotropy(int level);
+    static int maxAnisotropy(); // queried on the GL thread; 1 means unavailable
     static bool halfTexelEnabled(); static void setHalfTexel(bool v);
     static bool skipPostEnabled();  static void setSkipPost(bool v);
     static bool skipStaleVramEnabled(); static void setSkipStaleVram(bool v);
-    // Stored/persisted only for the overlay's config; the scaling machinery itself is
-    // NOT ported (its per-draw copy cost regressed the fight loop) -- always renders 1x.
+    // Scene-buffer scale is applied at startup; changing it live is unsafe for OpenGL.
     static int renderScale();       static void setRenderScale(int s);
     // Cel outline (ink rim + darkener) and character shadow decals, live-toggleable.
     static bool outlineEnabled();   static void setOutline(bool v);
