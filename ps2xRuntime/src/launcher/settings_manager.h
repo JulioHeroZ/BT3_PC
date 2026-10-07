@@ -44,6 +44,10 @@ public:
     bool skipPost() const { return m_skipPost; }
     bool skipStaleVram() const { return m_skipStaleVram; }
     int renderScale() const { return m_renderScale; }
+    int anisotropy() const { return m_anisotropy; }
+    void setAnisotropy(int level) { m_anisotropy = level; }
+    bool renderScaleAuto() const { return m_renderScaleAuto; }
+    void setRenderScaleAuto(bool value) { m_renderScaleAuto = value; }
     bool outline() const { return m_outline; }
     int inkStrength() const { return m_inkStrength; }
     int inkWidth() const { return m_inkWidth; }
@@ -121,6 +125,8 @@ private:
     bool m_glow = true, m_glowFix = true;
     bool m_bilinear = true, m_halfTexel = true, m_skipPost = true, m_skipStaleVram = true;
     int m_renderScale = 1;
+    bool m_renderScaleAuto = true;
+    int m_anisotropy = 1;
     bool m_outline = true, m_shadows = true, m_dofBlur = true;
     int m_inkStrength = 199, m_dofZFar = 200000;
     int m_inkWidth = 100;

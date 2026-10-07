@@ -30,10 +30,12 @@ public:
         bool glow = true;
         bool glowFix = true;   // [glowfix] BT3's bloom/glow chain (Kaioken aura); applies on restart
         bool bilinear = true;
+        int anisotropy = 1;
+        bool renderScaleAuto = true;
         bool halfTexel = true;
         bool skipPost = true;
         bool skipStaleVram = true;
-        int renderScale = 1; // built-in internal resolution multiplier derived from the window size: 720p=1x, 1080p=2x, 1440p+=3x
+        int renderScale = 1; // automatic window-based scale, or manual scale persisted for the next launch
         float deadzone = 0.15f;
         bool fullscreen = false;  // [defaults-sync] do not force fullscreen on first launch (rig + user surprise); one toggle away in the overlay
         bool widescreen = false;
