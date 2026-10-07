@@ -1727,6 +1727,11 @@ void PS2Runtime::configureIoPathsFromElf(const std::string &elfPath)
         paths.mcRoot = paths.elfDirectory.parent_path() / "savedata";
     }
 
+    // Installed games keep memory cards in the current user's writable profile.
+    if (const char *saveRoot = std::getenv("PS2X_SAVE_ROOT"))
+    {
+        if (saveRoot[0] != '\0') paths.mcRoot = std::filesystem::path(saveRoot);
+    }
     // Allow pointing the CDVD backend at a disc image via environment variable.
     if (const char *cdImageEnv = std::getenv("PS2X_CD_IMAGE"))
     {

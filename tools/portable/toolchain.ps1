@@ -21,7 +21,7 @@ function Import-BT3Toolchain {
         $programs = Initialize-BT3Programs
         $installer = $programs.BuildToolsInstaller
         if ((Get-AuthenticodeSignature -LiteralPath $installer).Status -ne 'Valid') { throw 'Assinatura do instalador Microsoft invalida.' }
-        Write-Host 'Instalando Visual Studio 2022 Build Tools, ClangCL e Windows SDK. Autorize o UAC do Windows.'
+        Write-Host 'BT3_PROGRESS|3|Instalando o compilador e o Windows SDK. Autorize o UAC do Windows'
         $arguments = '--passive --wait --norestart --add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Component.VC.Llvm.Clang --add Microsoft.VisualStudio.Component.VC.Llvm.ClangToolset --includeRecommended'
         $setup = Start-Process -FilePath $installer -ArgumentList $arguments -Verb RunAs -WindowStyle Hidden -PassThru -Wait
         if ($setup.ExitCode -eq 3010 -or $setup.ExitCode -eq 1641) { throw 'Ferramentas instaladas. Reinicie o Windows e execute novamente para compilar.' }

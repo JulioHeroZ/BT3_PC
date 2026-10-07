@@ -1,3 +1,10 @@
+## Instalar no Windows com uma unica ISO
+
+Abra **Recompilar-BT3.exe** na raiz do projeto, selecione sua ISO USA SLUS-21678 e confirme a pasta de instalacao. O programa prepara as ferramentas, compila o jogo, extrai os recursos da mesma ISO e cria um atalho na area de trabalho. O destino padrao e `Program Files (x86)/Dragon Ball Budokai Tenkaichi 3`, com opcao de alterar a pasta.
+
+A interface mostra as etapas e o progresso estimado; os detalhes completos da compilacao podem ser exibidos. Depois da instalacao, a ISO nao e necessaria. Veja [as instrucoes completas](tools/portable/README.md), incluindo ferramentas automaticas, permissoes e locais de saves.
+
+---
 # BT3-Recomp — Dragon Ball Z: Budokai Tenkaichi 3 on PC
 
 A statically recompiled, native PC port of *Dragon Ball Z: Budokai Tenkaichi 3*

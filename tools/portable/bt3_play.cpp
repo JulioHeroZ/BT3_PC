@@ -23,12 +23,27 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int)
         return 1;
     }
     SetEnvironmentVariableW(L"PS2X_CD_IMAGE", nullptr);
-    SetEnvironmentVariableW(L"PS2X_EXEDIR", root.c_str());
+    auto userRoot = root;
+    if (std::filesystem::exists(root / L"installed.marker")) {
+        wchar_t local[32768]{};
+        if (!GetEnvironmentVariableW(L"LOCALAPPDATA", local, 32768)) return 1;
+        userRoot = std::filesystem::path(local) / L"Dragon Ball Budokai Tenkaichi 3";
+        std::error_code setupError;
+        std::filesystem::create_directories(userRoot / L"savedata", setupError);
+        for (const auto &file : {L"savedata/settings.toml", L"fps60_sites.txt"}) {
+            if (!std::filesystem::exists(userRoot / file))
+                std::filesystem::copy_file(root / file, userRoot / file, setupError);
+        }
+        SetEnvironmentVariableW(L"PS2X_SAVE_ROOT", (userRoot / L"savedata").c_str());
+    } else {
+        SetEnvironmentVariableW(L"PS2X_SAVE_ROOT", nullptr);
+    }
+    SetEnvironmentVariableW(L"PS2X_EXEDIR", userRoot.c_str());
     SetEnvironmentVariableW(L"PS2X_ASSETDIR", (root / L"assets").c_str());
     std::error_code ec;
-    std::filesystem::create_directories(root / L"logs", ec);
+    std::filesystem::create_directories(userRoot / L"logs", ec);
     SECURITY_ATTRIBUTES security{sizeof(security), nullptr, TRUE};
-    HANDLE log = CreateFileW((root / L"logs" / L"game-latest.log").c_str(), GENERIC_WRITE,
+    HANDLE log = CreateFileW((userRoot / L"logs" / L"game-latest.log").c_str(), GENERIC_WRITE,
                             FILE_SHARE_READ, &security, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
     if (log == INVALID_HANDLE_VALUE) {
         MessageBoxW(nullptr, L"Nao foi possivel criar o log na pasta do jogo.", L"BT3 PC", MB_OK | MB_ICONERROR);
@@ -45,7 +60,7 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int)
     PROCESS_INFORMATION process{};
     std::wstring command = L"\"" + runner.wstring() + L"\" \"" + elf.wstring() + L"\"";
     const BOOL ok = CreateProcessW(runner.c_str(), command.data(), nullptr, nullptr, TRUE,
-                                   CREATE_NO_WINDOW, nullptr, root.c_str(), &start, &process);
+                                   CREATE_NO_WINDOW, nullptr, userRoot.c_str(), &start, &process);
     const DWORD error = ok ? 0 : GetLastError();
     CloseHandle(log);
     if (input != INVALID_HANDLE_VALUE) CloseHandle(input);
