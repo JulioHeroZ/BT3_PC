@@ -1,6 +1,6 @@
 function Initialize-BT3Programs {
-    $archives = Join-Path $PSScriptRoot 'programs'
     $repo = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
+    $archives = Join-Path $repo 'tools/portable/programs'
     $destination = Join-Path $repo 'build/portable-programs'
     $manifest = Get-Content -LiteralPath (Join-Path $archives 'manifest.json') -Raw | ConvertFrom-Json
     $paths = @{}
