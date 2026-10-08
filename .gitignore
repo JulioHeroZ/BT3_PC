@@ -66,3 +66,8 @@ Budokai Tenkaichi 3 Portable*.zip
 
 # Generic build frontend (contains no recompiled game code)
 !/Recompilar-BT3.exe
+
+# Native runtime packages, assets and personal data stay local.
+/Nativo/
+/Toolchain/
+/diagnostico-grafico/

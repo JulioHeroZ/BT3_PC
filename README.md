@@ -1,4 +1,14 @@
-## Instalar no Windows com uma unica ISO
+## Port nativo em C: original ou 60 fps
+
+A base nativa está em [native/](native/), integrada do Tenkaichi3Decomp v0.1.13. Em F1 > Video, escolha o modo original de 30 fps ou 60 fps com interpolação visual. O widescreen ajusta a projeção e mantém o HUD em proporção. Veja [os patches e a validação](native/JULIO-PATCHES.md).
+
+Os pacotes Windows são gerados pelo workflow **Native BT3 Windows**, em Actions. Extraia o ZIP em `Nativo/`, execute o setup com sua ISO USA e use `Testar-BT3-Nativo.bat`. Quem já tem a instalação anterior pode executar `Preparar-BT3-Nativo.py` para preparar seus próprios dados. Os saves nativos ficam separados dos anteriores.
+
+A compilação reproduzível usa `native/port/release/build.sh` (Docker). Os scripts de instalação e compilação MIPS abaixo continuam disponíveis para a versão anterior.
+
+---
+
+## Instalar a versão anterior no Windows com uma unica ISO
 
 Abra **Recompilar-BT3.exe** na raiz do projeto, selecione sua ISO USA SLUS-21678 e confirme a pasta de instalacao. O programa prepara as ferramentas, compila o jogo, extrai os recursos da mesma ISO e cria um atalho na area de trabalho. O destino padrao e `Program Files (x86)/Dragon Ball Budokai Tenkaichi 3`, com opcao de alterar a pasta.
 
@@ -10,7 +20,7 @@ A interface mostra as etapas e o progresso estimado; os detalhes completos da co
 A statically recompiled, native PC port of *Dragon Ball Z: Budokai Tenkaichi 3*
 (PS2, USA, SLUS-21678), built on [PS2Recomp](https://github.com/ran-j/PS2Recomp).
 The game's MIPS code is translated to C++ **at build time, from your own disc
-image** — this repository contains no game code, assets, or media.
+image** — the legacy recompilation is generated from that image. No disc assets or media are distributed here.
 
 > This is not an emulator: the game's executable and its gameplay overlay are
 > recompiled into a native, portable game tree with an OpenGL renderer. Ships

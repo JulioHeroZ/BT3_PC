@@ -1,0 +1,38 @@
+name: Native BT3 Windows
+on:
+  push:
+    branches: [main]
+    paths: ['native/**', '.github/workflows/native-port.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows-package:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: native/port/release
+          tags: bt3-native-build:local
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Compile and package without game data
+        run: |
+          docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -e BT3_CC=win64 -e BT3_SKELETON=1 \
+            -v "$PWD/native":/src -w /src bt3-native-build:local sh -ec '
+              mkdir -p port/build
+              python3 port/tools/undefined.py > port/build/compile.txt 2>&1
+              if grep -q "^FAILED" port/build/compile.txt; then cat port/build/compile.txt; exit 1; fi
+              python3 port/tools/link.py
+              sh port/setup/build.sh win
+              python3 port/tools/package.py
+            '
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BT3-native-windows
+          path: native/port/build/Tenkaichi3Decomp-windows-x64.zip
+          if-no-files-found: error
